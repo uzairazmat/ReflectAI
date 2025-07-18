@@ -9,9 +9,9 @@ class FatigueDetector:
     LEFT_EYE = [33, 160, 158, 133, 153, 144]
     RIGHT_EYE = [263, 387, 385, 362, 380, 373]
 
-    def __init__(self, threshold=0.25, fatigue_frames=20):
-        self.ear_threshold = threshold
-        self.fatigue_frame_threshold = fatigue_frames
+    def __init__(self, threshold=0.15, fatigue_frames=15):  # More lenient thresholds
+        self.ear_threshold = threshold  # Lower threshold (original: 0.25)
+        self.fatigue_frame_threshold = fatigue_frames  # Fewer frames (original: 20)
         self.fatigue_counter = 0
         self.mp_face_mesh = mp.solutions.face_mesh
         self.face_mesh = self.mp_face_mesh.FaceMesh(
@@ -49,7 +49,7 @@ class FatigueDetector:
                 cv2.putText(frame, f"EAR: {ear:.2f}", (30, 30),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
 
-                # Fatigue logic
+                # More lenient fatigue logic
                 if ear < self.ear_threshold:
                     self.fatigue_counter += 1
                     if self.fatigue_counter >= self.fatigue_frame_threshold:
@@ -57,6 +57,7 @@ class FatigueDetector:
                         cv2.putText(frame, "😴 Fatigue Detected!", (30, 60),
                                     cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 0, 255), 2)
                 else:
-                    self.fatigue_counter = 0
+                    # Reset counter more gradually
+                    self.fatigue_counter = max(0, self.fatigue_counter - 2)
 
         return frame, fatigue_flag, ear

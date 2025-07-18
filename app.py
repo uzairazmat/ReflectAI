@@ -2,11 +2,11 @@ import streamlit as st
 import cv2
 import time
 from datetime import datetime
+import json
 
 from emotion_detector.model import EmotionDetector
 from emotion_detector.utils import save_image, log_to_file
-
-from fatigue_detection import FatigueDetector  # <- OOP Fatigue
+from fatigue_detection import FatigueDetector
 
 # ---------------- Streamlit UI Setup ----------------
 st.set_page_config(page_title="Real-Time Emotion + Fatigue Detector", layout="centered")
@@ -26,7 +26,7 @@ delay_placeholder = st.empty()
 confidence_placeholder = st.empty()
 toast_placeholder = st.empty()
 
-# ---------------- Load Models (Emotion + Fatigue) ----------------
+# ---------------- Load Models ----------------
 if "detector" not in st.session_state:
     st.session_state.detector = EmotionDetector()
 detector = st.session_state.detector
@@ -56,8 +56,16 @@ while run:
     # 1. Fatigue Detection
     processed_frame, is_fatigued, ear = fatigue.process_frame(frame)
 
-    if ear:
-        delay_placeholder.caption(f"🔎 EAR: `{round(ear, 2)}`")
+    # Determine fatigue status
+    if ear is None:
+        fatigue_status = "no face detected"
+    elif ear >= fatigue.ear_threshold:
+        fatigue_status = "not fatigue"
+    elif fatigue.fatigue_counter >= fatigue.fatigue_frame_threshold:
+        fatigue_status = "fully fatigue"
+    else:
+        fatigue_status = "normal fatigue"
+
     if is_fatigued:
         toast_placeholder.warning("😴 Fatigue Detected! Please rest.", icon="💤")
 
@@ -81,13 +89,24 @@ while run:
                 detector.log_emotion(emotion)
                 last_logged_time = current_time
 
-                # Save image + log
+                # Save data
                 timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
                 image_path = save_image(frame, timestamp, emotion)
-                log_to_file(timestamp, emotion, confidence_scores, image_path)
+
+                # Store logs (both simple and detailed)
+                log_to_file(
+                    timestamp=timestamp,
+                    emotion=emotion,
+                    confidence_scores=confidence_scores,
+                    image_path=image_path,
+                    fatigue_status=fatigue_status
+                )
 
                 # UI Notification
-                toast_placeholder.success(f"✅ Saved image: {emotion} at {timestamp}", icon="💾")
+                toast_placeholder.success(
+                    f"✅ Saved: {emotion} | Fatigue: {fatigue_status}",
+                    icon="💾"
+                )
 
         # Show confidence scores
         confidence_placeholder.caption("💡 Confidence Scores:")
@@ -107,8 +126,42 @@ while run:
 
     time.sleep(0.03)  # smooth stream
 
+# In the else block (when webcam stops), replace the display code with:
+
 else:
     camera.release()
     st.write("🛑 Webcam stopped.")
-    st.subheader("📊 Emotion Log")
-    st.json(detector.get_predictions())
+
+    # Display combined simple log with fatigue status
+    st.subheader("📊 Emotion + Fatigue Log")
+    simple_log = detector.get_predictions()  # Gets {"timestamp": "emotion"}
+
+    # Load fatigue data from detailed logs
+    try:
+        with open("emotion_logs/detailed_predictions.json", "r") as f:
+            detailed_logs = json.load(f)
+
+        # Combine data for display
+        combined_log = {}
+        for ts, emotion in simple_log.items():
+            # Find matching detailed entry (convert timestamp format if needed)
+            file_ts = ts.replace(" ", "_").replace(":", "-")
+            fatigue_status = detailed_logs.get(file_ts, {}).get("fatigue_status", "unknown")
+            combined_log[ts] = f"{emotion}:{fatigue_status}"
+
+        st.json(combined_log)
+
+    except FileNotFoundError:
+        st.json(simple_log)  # Fallback to original if no detailed logs
+        st.warning("No fatigue data available")
+    except json.JSONDecodeError:
+        st.json(simple_log)
+        st.error("Could not load fatigue data")
+
+    # Detailed logs expander (unchanged)
+    with st.expander("🔍 View Full Technical Logs"):
+        try:
+            with open("emotion_logs/detailed_predictions.json", "r") as f:
+                st.json(json.load(f))
+        except FileNotFoundError:
+            st.warning("No detailed logs available")
