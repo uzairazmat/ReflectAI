@@ -3,10 +3,18 @@ import cv2
 import time
 from datetime import datetime
 import json
+import os
+from chat_llm import SessionManager
+from chat_llm.conversation_trigger import ConversationTrigger
 
 from emotion_detector.model import EmotionDetector
-from emotion_detector.utils import save_image, log_to_file
+from emotion_detector.utils import save_image, log_to_file ,log_first_prediction
 from fatigue_detection import FatigueDetector
+from emotion_detector.utils import get_session_id, log_first_prediction
+session_file = "emotion_logs/current_session.txt"
+if os.path.exists(session_file):
+    os.remove(session_file)
+
 
 # ---------------- Streamlit UI Setup ----------------
 st.set_page_config(page_title="Real-Time Emotion + Fatigue Detector", layout="centered")
@@ -82,6 +90,7 @@ while run:
             stable_count = 1
             last_prediction = emotion
 
+        # In your main.py, inside the emotion detection block (around line 70)
         if stable_count >= stability_threshold and emotion != predicted_emotion:
             current_time = time.time()
             if current_time - last_logged_time >= log_cooldown:
@@ -102,11 +111,34 @@ while run:
                     fatigue_status=fatigue_status
                 )
 
-                # UI Notification
-                toast_placeholder.success(
-                    f"✅ Saved: {emotion} | Fatigue: {fatigue_status}",
-                    icon="💾"
+                # NEW: Log first prediction of session
+                log_first_prediction(
+                    timestamp=timestamp,
+                    emotion=emotion,
+                    confidence_scores=confidence_scores,
+                    image_path=image_path,
+                    fatigue_status=fatigue_status
                 )
+                # NEW: Import session rule engine
+                from conversation.session_manager import SessionManager
+                from conversation.conversation_trigger import ConversationTrigger
+
+                # --- Rule-based first message logic (only once per session) ---
+                session_id = get_session_id()
+                session_manager = SessionManager()
+
+                # Only trigger if it's the same current session (new run)
+                if session_manager.is_current_session(session_id):
+                    emotion, fatigue = session_manager.get_emotion_and_fatigue()
+                    trigger = ConversationTrigger(emotion, fatigue)
+                    first_msg = trigger.generate_message()
+
+                    if first_msg:
+                        st.markdown("---")
+                        st.markdown("### 🤖 ReflectAI wants to chat:")
+                        with st.chat_message("assistant"):
+                            st.markdown(first_msg)
+                        st.markdown("---")
 
         # Show confidence scores
         confidence_placeholder.caption("💡 Confidence Scores:")
