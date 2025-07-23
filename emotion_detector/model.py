@@ -15,8 +15,8 @@ class EmotionDetector:
             'neutral': 0.65,  # High threshold reduces false neutrals
             'happy': 0.65,  # Increased to counter DeepFace happy bias
             'sad': 0.25,  # Lower for better fatigue correlation
-            'angry': 0.35,  # Balanced for alert detection
-            'fear': 0.30,  # Sensitive to stress indicators
+            'angry': 0.25,  # Balanced for alert detection
+            'fear': 0.25,  # Sensitive to stress indicators
             'surprise': 0.25,  # Brief reactions
             'disgust': 0.35  # Moderate threshold
         }
@@ -83,6 +83,7 @@ class EmotionDetector:
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             self.predictions[timestamp] = emotion
             self.last_logged_emotion = emotion
+
 
     def get_predictions(self):
         """Returns simplified {timestamp: emotion} dict"""
