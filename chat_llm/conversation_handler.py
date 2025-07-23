@@ -182,3 +182,14 @@ class ConversationManager:
 
         except Exception as e:
             print(f"❌ Error saving chat history: {e}")
+
+    def get_past_summaries(self):
+        """Load all past session summaries for personalization."""
+        if os.path.exists(self.chat_history_file):
+            with open(self.chat_history_file, 'r') as file:
+                try:
+                    return json.load(file)
+                except json.JSONDecodeError:
+                    return []
+        return []
+

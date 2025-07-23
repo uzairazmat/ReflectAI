@@ -90,10 +90,12 @@ class LLMEngine:
 
     def generate_response(self, user_message: str, emotion: str = "neutral",
                           fatigue_status: str = "unknown",
-                          conversation_history: List[Dict[str, str]] = None) -> str:
+                          conversation_history: List[Dict[str, str]] = None,
+                          chat_history: List[Dict[str, str]] = None) -> str:
         """
         Generate a 1–2 line psychology-informed response using CBT format.
         Uses templates first, then falls back to Gemini if available.
+        Includes both current session and all-session chat history.
         """
         emotion = emotion.lower()
 
@@ -106,7 +108,15 @@ class LLMEngine:
             try:
                 contents = []
 
-                # 2.1. Add all previous messages to Gemini format
+                # 2.1. Add all-session chat history if provided
+                if chat_history:
+                    for msg in chat_history:
+                        contents.append({
+                            "role": msg["role"],  # 'user' or 'model'
+                            "parts": [{"text": msg["content"]}]
+                        })
+
+                # 2.2. Add current conversation session if provided
                 if conversation_history:
                     for msg in conversation_history:
                         contents.append({
@@ -114,7 +124,7 @@ class LLMEngine:
                             "parts": [{"text": msg["content"]}]
                         })
 
-                # 2.2. Add current message with extra context
+                # 2.3. Add current message with emotion/fatigue context
                 contents.append({
                     "role": "user",
                     "parts": [{
@@ -137,10 +147,10 @@ class LLMEngine:
                 st.write("🔍 Messages sent to Gemini:")
                 st.json(contents)
 
-                # 2.3. Generate response using Gemini model
+                # 2.4. Generate response using Gemini model
                 response = self.model.generate_content(contents)
 
-                # 2.4. Trim long replies but avoid cutting mid-sentence
+                # 2.5. Trim long replies but avoid cutting mid-sentence
                 return self._trim_response(response.text)
 
             except Exception as e:

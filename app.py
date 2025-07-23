@@ -8,17 +8,15 @@ from chat_llm.SessionManager import SessionManager
 from chat_llm.conversation_trigger import ConversationTrigger
 from chat_llm.conversation_handler import ConversationManager
 from chat_llm.llm_engine import LLMEngine
+# Initialize all required session state variables
 
-from emotion_detector.model import EmotionDetector
-from emotion_detector.utils import save_image, log_to_file, log_first_prediction
-from fatigue_detection import FatigueDetector
-from emotion_detector.utils import get_session_id, log_first_prediction
+# Initialize all required session state variables
+if "session_started" not in st.session_state:
+    st.session_state.session_started = False
 
-# ---------------- Streamlit UI Setup ----------------
-st.set_page_config(page_title="🧠 ReflectAI", layout="centered")
-st.title("🧠 ReflectAI: Real-Time Emotion + Fatigue Detector")
+if "first_prediction_logged" not in st.session_state:
+    st.session_state.first_prediction_logged = False
 
-# ============== Chat Initialization ==============
 if "conversation_manager" not in st.session_state:
     st.session_state.conversation_manager = ConversationManager()
 
@@ -28,17 +26,12 @@ if "llm_engine" not in st.session_state:
 if "message_shown" not in st.session_state:
     st.session_state.message_shown = False
 
-if "first_prediction_logged" not in st.session_state:
-    st.session_state.first_prediction_logged = False
 
-# NEW flag: has a session actually started?
-if "session_started" not in st.session_state:
-    st.session_state.session_started = False
 
-# Clear previous session file
-session_file = "emotion_logs/current_session.txt"
-if os.path.exists(session_file):
-    os.remove(session_file)
+from emotion_detector.model import EmotionDetector
+from emotion_detector.utils import save_image, log_to_file, log_first_prediction
+from fatigue_detection import FatigueDetector
+from emotion_detector.utils import get_session_id, log_first_prediction
 
 # ============== Sidebar Settings ==============
 st.sidebar.header("⚙️ Settings")
@@ -72,11 +65,27 @@ if user_input := st.chat_input("Type your message..."):
         st.markdown(user_input)
     with st.chat_message("assistant"):
         with st.spinner("Thinking..."):
-            full_history = st.session_state.conversation_manager.get_full_history_for_llm()
+            # Load current session messages
+            current_session = st.session_state.conversation_manager.get_full_history_for_llm()
+
+            # Load previous session summaries
+            past_summaries = st.session_state.conversation_manager.get_past_summaries()
+
+            # Convert summaries to Gemini-friendly message format
+            chat_history = []
+            for summary in past_summaries:
+                chat_history.append({
+                    "role": "user",
+                    "content": f"Summary of a previous session on {summary['timestamp']}: {summary['summary']}"
+                })
+
+            # Generate response with both current + past session context
             response = st.session_state.llm_engine.generate_response(
                 user_message=user_input,
-                conversation_history=full_history
+                conversation_history=current_session,
+                chat_history=chat_history
             )
+
             st.markdown(response)
             st.session_state.conversation_manager.add_assistant_message(response)
 

@@ -217,5 +217,7 @@ keys.py
 /config.py
 /credentials/
 secrets/
-/home/uzii/Documents/python/ReflectAI/chat_llm/test_emotion_logs.json
-/home/uzii/Documents/python/ReflectAI/chat_llm/chat_history.json
+# Ignore generated chat logs
+chat_llm/test_emotion_logs.json
+chat_llm/chat_history.json
+chat_llm/current_session_chat_history.json
